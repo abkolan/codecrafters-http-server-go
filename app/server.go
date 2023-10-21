@@ -35,5 +35,9 @@ func main() {
 		fmt.Println("Connection Error", err)
 	}
 	defer closeConnection(conn)
+	_, err = conn.Write([]byte("HTTP/1.1 200 OK\\r\\n\\r\\n"))
+	if err != nil {
+
+	}
 	os.Exit(0)
 }
