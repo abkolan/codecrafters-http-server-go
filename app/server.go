@@ -2,26 +2,38 @@ package main
 
 import (
 	"fmt"
-	// Uncomment this block to pass the first stage
-	// "net"
-	// "os"
+	"net"
+	"os"
 )
 
-func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	fmt.Println("Logs from your program will appear here!")
+func closeListener(ln net.Listener) {
+	if err := ln.Close(); err != nil {
+		fmt.Println("Error while closing the listener")
+	}
+}
 
-	// Uncomment this block to pass the first stage
-	//
-	// l, err := net.Listen("tcp", "0.0.0.0:4221")
-	// if err != nil {
-	// 	fmt.Println("Failed to bind to port 4221")
-	// 	os.Exit(1)
-	// }
-	//
-	// _, err = l.Accept()
-	// if err != nil {
-	// 	fmt.Println("Error accepting connection: ", err.Error())
-	// 	os.Exit(1)
-	// }
+func closeConnection(conn net.Conn) {
+	if err := conn.Close(); err != nil {
+		fmt.Println("Error while closing the connection", conn)
+	}
+}
+
+func main() {
+	fmt.Println("Starting server..")
+	ln, err := net.Listen("tcp", ":4221")
+	if err != nil {
+		//panic(err)
+		fmt.Println("Error while staring a listener", err)
+		os.Exit(1)
+	}
+	defer closeListener(ln)
+
+	fmt.Println("TCP Server listening at 4221")
+
+	conn, err := ln.Accept()
+	if err != nil {
+		fmt.Println("Connection Error", err)
+	}
+	defer closeConnection(conn)
+	os.Exit(0)
 }
