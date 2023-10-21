@@ -46,7 +46,7 @@ func handleConnection(conn net.Conn) {
 	fmt.Printf("Read: %v from the server", message)
 
 	// Respond with a 200
-	resp := "HTTP/1.1 200 OK\\r\\n\\r\\n"
+	resp := "HTTP/1.1 200 OK\r\n\r\n"
 	_, err = conn.Write([]byte(resp))
 	if err != nil {
 		fmt.Println("Error while reading from the connection", err)
