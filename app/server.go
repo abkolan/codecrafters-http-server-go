@@ -76,7 +76,7 @@ func processRequest(requestString string) string {
 					fmt.Printf("\n http_verb %s", httpVerb)
 				}
 				if j == 1 {
-					httpPath = strings.ToLower(input)
+					httpPath = input
 					fmt.Printf("\n http_path %s", httpPath)
 				}
 				if j == 2 {
@@ -86,12 +86,20 @@ func processRequest(requestString string) string {
 			}
 		}
 	}
-	switch httpPath {
-	case "/":
+	if httpPath == "/" {
 		responseString = "HTTP/1.1 200 OK\r\n\r\n"
-	default:
-		responseString = "HTTP/1.1 404 Not Found\r\n\r\n"
+	} else if strings.HasPrefix(httpPath, "/echo/") {
+		index := strings.Index(httpPath, "/echo/")
+		reqParam := httpPath[index+len("/echo/"):]
 
+		responseString = fmt.Sprintf(
+			"HTTP/1.1 200 OK\r\n"+
+				"Content-Type: text/plain\r\n"+
+				"Content-Length: %d\r\n\r\n"+
+				"%s", len(reqParam), reqParam)
+	} else {
+		responseString = "HTTP/1.1 404 Not Found\r\n\r\n"
 	}
+	fmt.Printf("RESULT --->Response = \n%v", responseString)
 	return responseString
 }
