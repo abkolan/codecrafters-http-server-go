@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 func closeListener(ln net.Listener) {
@@ -33,7 +34,12 @@ func main() {
 }
 
 func handleConnection(conn net.Conn) {
-	defer conn.Close()
+	defer func(conn net.Conn) {
+		err := conn.Close()
+		if err != nil {
+			fmt.Println("Error closing connection", err)
+		}
+	}(conn)
 	// Create a byte array that would serve as a buffer
 	buf := make([]byte, 512)
 
@@ -43,12 +49,49 @@ func handleConnection(conn net.Conn) {
 		fmt.Println("Error reading from the connection:", err)
 	}
 	message := string(buf[:n])
-	fmt.Printf("Read: %v from the server", message)
+	//fmt.Printf("Read: %v from the server", message)
+	responseString := processRequest(message)
 
+	fmt.Printf("Fetched: %v response", responseString)
 	// Respond with a 200
-	resp := "HTTP/1.1 200 OK\r\n\r\n"
+	//resp := "HTTP/1.1 200 OK\r\n\r\n"
+	resp := responseString
 	_, err = conn.Write([]byte(resp))
 	if err != nil {
 		fmt.Println("Error while reading from the connection", err)
 	}
+}
+
+func processRequest(requestString string) string {
+	var responseString string
+	lines := strings.Split(requestString, "\n")
+	var httpVerb, httpPath, httpVersion string
+	for i, line := range lines {
+		fmt.Printf("\n Line %d: %s", i, line)
+		if i == 0 {
+			inputs := strings.Split(line, " ")
+			for j, input := range inputs {
+				if j == 0 {
+					httpVerb = strings.ToUpper(input)
+					fmt.Printf("\n http_verb %s", httpVerb)
+				}
+				if j == 1 {
+					httpPath = strings.ToLower(input)
+					fmt.Printf("\n http_path %s", httpPath)
+				}
+				if j == 2 {
+					httpVersion = strings.ToUpper(input)
+					fmt.Printf("\n http_version %s", httpVersion)
+				}
+			}
+		}
+	}
+	switch httpPath {
+	case "/":
+		responseString = "HTTP/1.1 200 OK\r\n\r\n"
+	default:
+		responseString = "HTTP/1.1 404 Not Found\r\n\r\n"
+
+	}
+	return responseString
 }
