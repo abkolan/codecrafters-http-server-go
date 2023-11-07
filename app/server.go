@@ -24,13 +24,13 @@ func main() {
 	defer closeListener(ln)
 
 	fmt.Println("TCP Server listening at 4221")
-
-	conn, err := ln.Accept()
-	if err != nil {
-		fmt.Println("Connection Error", err)
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			fmt.Println("Connection Error", err)
+		}
+		go handleConnection(conn)
 	}
-	handleConnection(conn)
-	os.Exit(0)
 }
 
 func handleConnection(conn net.Conn) {
@@ -41,7 +41,7 @@ func handleConnection(conn net.Conn) {
 		}
 	}(conn)
 	// Create a byte array that would serve as a buffer
-	buf := make([]byte, 512)
+	buf := make([]byte, 1024)
 
 	// Read from the connection
 	n, err := conn.Read(buf)
