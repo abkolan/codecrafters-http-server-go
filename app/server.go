@@ -63,9 +63,10 @@ func handleConnection(conn net.Conn) {
 }
 
 func processRequest(requestString string) string {
+	const UserAgentPrefix = "User-Agent:"
 	var responseString string
 	lines := strings.Split(requestString, "\n")
-	var httpVerb, httpPath, httpVersion string
+	var httpVerb, httpPath, httpVersion, userAgent string
 	for i, line := range lines {
 		fmt.Printf("\n Line %d: %s", i, line)
 		if i == 0 {
@@ -85,6 +86,9 @@ func processRequest(requestString string) string {
 				}
 			}
 		}
+		if strings.HasPrefix(line, UserAgentPrefix) {
+			userAgent = ExtractKV(line, UserAgentPrefix)
+		}
 	}
 	if httpPath == "/" {
 		responseString = "HTTP/1.1 200 OK\r\n\r\n"
@@ -97,9 +101,22 @@ func processRequest(requestString string) string {
 				"Content-Type: text/plain\r\n"+
 				"Content-Length: %d\r\n\r\n"+
 				"%s", len(reqParam), reqParam)
+	} else if strings.HasPrefix(httpPath, "/user-agent") {
+		responseString = fmt.Sprintf(
+			"HTTP/1.1 200 OK\r\n"+
+				"Content-Type: text/plain\r\n"+
+				"Content-Length: %d\r\n\r\n"+
+				"%s", len(userAgent), userAgent)
+
 	} else {
 		responseString = "HTTP/1.1 404 Not Found\r\n\r\n"
 	}
 	fmt.Printf("RESULT --->Response = \n%v", responseString)
 	return responseString
+}
+
+func ExtractKV(line string, prefix string) string {
+	index := strings.Index(line, prefix)
+	value := line[index+len(prefix):]
+	return strings.TrimSpace(value)
 }
