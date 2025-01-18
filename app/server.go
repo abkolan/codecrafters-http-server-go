@@ -9,22 +9,15 @@ import (
 	"strings"
 )
 
-func closeListener(ln net.Listener) {
-	if err := ln.Close(); err != nil {
-		fmt.Println("Error while closing the listener")
-	}
-}
-
 var directory string
 
 func main() {
-	// Define the directory flag
-	dir := flag.String("directory", "/tmp/", "Directory to serve files from")
-	flag.Parse()
-	directory = *dir
+	// Parse arguments
+	directory = parseArgs()
 
 	fmt.Printf("Starting server.. Serving files from directory: %s\n", directory)
 	ln, err := net.Listen("tcp", ":4221")
+
 	if err != nil {
 		//panic(err)
 		fmt.Println("Error while staring a listener", err)
@@ -42,13 +35,27 @@ func main() {
 	}
 }
 
+func parseArgs() string {
+	dir := flag.String("directory", "/tmp/", "Directory to serve files from")
+	flag.Parse()
+	return *dir
+}
+
+func closeListener(ln net.Listener) {
+	if err := ln.Close(); err != nil {
+		fmt.Println("Error while closing the listener")
+	}
+}
+
 func handleConnection(conn net.Conn) {
+	// Close the connection when the function returns
 	defer func(conn net.Conn) {
 		err := conn.Close()
 		if err != nil {
 			fmt.Println("Error closing connection", err)
 		}
 	}(conn)
+
 	// Create a byte array that would serve as a buffer
 	buf := make([]byte, 1024)
 
@@ -59,106 +66,107 @@ func handleConnection(conn net.Conn) {
 	}
 	message := string(buf[:n])
 	//fmt.Printf("Read: %v from the server", message)
-	responseString := processRequest(message)
+	request := parseHttpRequest(message)
+	response := generateHttpResponse(request)
 
-	fmt.Printf("Fetched: %v response", responseString)
-	// Respond with a 200
-	//resp := "HTTP/1.1 200 OK\r\n\r\n"
-	resp := responseString
+	fmt.Printf("Fetched: %v response", response)
+	resp := fmt.Sprintf("HTTP/1.1 %d %s\r\n", response.StatusCode, response.Status)
+	for key, value := range response.Headers {
+		resp += fmt.Sprintf("%s: %s\r\n", key, value)
+	}
+	resp += "\r\n" + response.Body
 	_, err = conn.Write([]byte(resp))
 	if err != nil {
 		fmt.Println("Error while reading from the connection", err)
 	}
 }
+func generateHttpResponse(request HttpRequest) HttpResponse {
+	var response HttpResponse
 
-func processRequest(requestString string) string {
-	const UserAgentPrefix = "User-Agent:"
-	var responseString string
-	lines := strings.Split(requestString, "\n")
-	var httpVerb, httpPath, httpVersion, userAgent string
-	for i, line := range lines {
-		fmt.Printf("\n Line %d: %s", i, line)
-		if i == 0 {
-			inputs := strings.Split(line, " ")
-			for j, input := range inputs {
-				if j == 0 {
-					httpVerb = strings.ToUpper(input)
-					fmt.Printf("\n http_verb %s", httpVerb)
-				}
-				if j == 1 {
-					httpPath = input
-					fmt.Printf("\n http_path %s", httpPath)
-				}
-				if j == 2 {
-					httpVersion = strings.ToUpper(input)
-					fmt.Printf("\n http_version %s", httpVersion)
-				}
-			}
+	if request.Path == "/" {
+		response = HttpResponse{
+			StatusCode: 200,
+			Status:     "OK",
+			Headers:    map[string]string{"Content-Type": "text/plain"},
+			Body:       "",
 		}
-		if strings.HasPrefix(line, UserAgentPrefix) {
-			userAgent = ExtractKV(line, UserAgentPrefix)
-		}
-	}
-	if httpPath == "/" {
-		responseString = "HTTP/1.1 200 OK\r\n\r\n"
-	} else if strings.HasPrefix(httpPath, "/echo/") {
-		index := strings.Index(httpPath, "/echo/")
-		reqParam := httpPath[index+len("/echo/"):]
-
-		responseString = fmt.Sprintf(
-			"HTTP/1.1 200 OK\r\n"+
-				"Content-Type: text/plain\r\n"+
-				"Content-Length: %d\r\n\r\n"+
-				"%s", len(reqParam), reqParam)
-	} else if strings.HasPrefix(httpPath, "/files/") {
-		index := strings.Index(httpPath, "/files/")
-		fileName := httpPath[index+len("/files/"):]
+	} else if strings.HasPrefix(request.Path, "/files/") {
+		fileName := strings.TrimPrefix(request.Path, "/files/")
 		filePathToServe := filepath.Join(directory, fileName)
 		file, err := os.Open(filePathToServe)
 		if err != nil {
-			responseString = "HTTP/1.1 404 Not Found\r\n\r\n"
+			response = HttpResponse{
+				StatusCode: 404,
+				Status:     "Not Found",
+				Headers:    map[string]string{"Content-Type": "text/plain"},
+				Body:       "File not found",
+			}
 		} else {
-			fileInfo, err := file.Stat()
+			defer file.Close()
+			fileContent, err := os.ReadFile(filePathToServe)
 			if err != nil {
-				responseString = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
+				response = HttpResponse{
+					StatusCode: 500,
+					Status:     "Internal Server Error",
+					Headers:    map[string]string{"Content-Type": "text/plain"},
+					Body:       "Error reading file",
+				}
 			} else {
-				fileSize := fileInfo.Size()
-				buf := make([]byte, fileSize)
-				_, err := file.Read(buf)
-				if err != nil {
-					responseString = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
-				} else {
-					responseString = fmt.Sprintf(
-						"HTTP/1.1 200 OK\r\n"+
-							"Content-Type: application/octet-stream\r\n"+
-							"Content-Length: %d\r\n\r\n"+"%s", fileSize, buf)
+				response = HttpResponse{
+					StatusCode: 200,
+					Status:     "OK",
+					Headers: map[string]string{
+						"Content-Type":   "application/octet-stream",
+						"Content-Length": fmt.Sprintf("%d", len(fileContent))},
+					Body: string(fileContent),
 				}
 			}
 		}
+	} else if strings.HasPrefix(request.Path, "/echo/") {
+		msg := strings.TrimPrefix(request.Path, "/echo/")
+		response = HttpResponse{
+			StatusCode: 200,
+			Status:     "OK",
+			Headers: map[string]string{"Content-Type": "text/plain",
+				"Content-Length": fmt.Sprintf("%d", len(msg))},
+			Body: msg,
+		}
 
-	} else if strings.HasPrefix(httpPath, "/user-agent") {
-		responseString = fmt.Sprintf(
-			"HTTP/1.1 200 OK\r\n"+
-				"Content-Type: text/plain\r\n"+
-				"Content-Length: %d\r\n\r\n"+
-				"%s", len(userAgent), userAgent)
-
+	} else if request.Path == "/user-agent" {
+		response = HttpResponse{
+			StatusCode: 200,
+			Status:     "OK",
+			Headers: map[string]string{"Content-Type": "text/plain",
+				"Content-Length": fmt.Sprintf("%d", len(request.Headers["User-Agent"]))},
+			Body: request.Headers["User-Agent"],
+		}
 	} else {
-		responseString = "HTTP/1.1 404 Not Found\r\n\r\n"
+		response = HttpResponse{
+			StatusCode: 404,
+			Status:     "Not Found",
+			Headers:    map[string]string{"Content-Type": "text/plain"},
+			Body:       "Path not found",
+		}
 	}
-	fmt.Printf("RESULT --->Response = \n%v", responseString)
-	return responseString
-}
 
-func ExtractKV(line string, prefix string) string {
-	index := strings.Index(line, prefix)
-	value := line[index+len(prefix):]
-	return strings.TrimSpace(value)
+	return response
 }
 
 // HttpRequest represents an HTTP request
+type HttpMethod string
+
+const (
+	GET     HttpMethod = "GET"
+	POST    HttpMethod = "POST"
+	PUT     HttpMethod = "PUT"
+	DELETE  HttpMethod = "DELETE"
+	OPTIONS HttpMethod = "OPTIONS"
+	HEAD    HttpMethod = "HEAD"
+	PATCH   HttpMethod = "PATCH"
+)
+
 type HttpRequest struct {
-	Method  string
+	Method  HttpMethod
 	Path    string
 	Headers map[string]string
 	Body    string
@@ -182,9 +190,17 @@ func parseHttpRequest(requestString string) HttpRequest {
 	body := strings.Join(lines[len(headers)+2:], "\r\n")
 
 	return HttpRequest{
-		Method:  method,
+		Method:  HttpMethod(method),
 		Path:    path,
 		Headers: headers,
 		Body:    body,
 	}
+}
+
+// HttpResponse represents an HTTP response
+type HttpResponse struct {
+	StatusCode int
+	Status     string
+	Headers    map[string]string
+	Body       string
 }
