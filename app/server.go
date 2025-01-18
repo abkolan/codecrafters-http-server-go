@@ -36,7 +36,7 @@ func main() {
 }
 
 func parseArgs() string {
-	dir := flag.String("directory", "/tmp/", "Directory to serve files from")
+	dir := flag.String("directory", os.TempDir(), "Directory to serve files from")
 	flag.Parse()
 	return *dir
 }
@@ -91,34 +91,55 @@ func generateHttpResponse(request HttpRequest) HttpResponse {
 			Body:       "",
 		}
 	} else if strings.HasPrefix(request.Path, "/files/") {
-		fileName := strings.TrimPrefix(request.Path, "/files/")
-		filePathToServe := filepath.Join(directory, fileName)
-		file, err := os.Open(filePathToServe)
-		if err != nil {
-			response = HttpResponse{
-				StatusCode: 404,
-				Status:     "Not Found",
-				Headers:    map[string]string{"Content-Type": "text/plain"},
-				Body:       "File not found",
+		if request.Method == GET {
+			fileName := strings.TrimPrefix(request.Path, "/files/")
+			filePathToServe := filepath.Join(directory, fileName)
+			file, err := os.Open(filePathToServe)
+			if err != nil {
+				response = HttpResponse{
+					StatusCode: 404,
+					Status:     "Not Found",
+					Headers:    map[string]string{"Content-Type": "text/plain"},
+					Body:       "File not found",
+				}
+			} else {
+				defer file.Close()
+				fileContent, err := os.ReadFile(filePathToServe)
+				if err != nil {
+					response = HttpResponse{
+						StatusCode: 500,
+						Status:     "Internal Server Error",
+						Headers:    map[string]string{"Content-Type": "text/plain"},
+						Body:       "Error reading file",
+					}
+				} else {
+					response = HttpResponse{
+						StatusCode: 200,
+						Status:     "OK",
+						Headers: map[string]string{
+							"Content-Type":   "application/octet-stream",
+							"Content-Length": fmt.Sprintf("%d", len(fileContent))},
+						Body: string(fileContent),
+					}
+				}
 			}
-		} else {
-			defer file.Close()
-			fileContent, err := os.ReadFile(filePathToServe)
+		} else if request.Method == POST {
+			fileName := strings.TrimPrefix(request.Path, "/files/")
+			filePathToSave := filepath.Join(directory, fileName)
+			err := os.WriteFile(filePathToSave, []byte(request.Body), 0644)
 			if err != nil {
 				response = HttpResponse{
 					StatusCode: 500,
 					Status:     "Internal Server Error",
 					Headers:    map[string]string{"Content-Type": "text/plain"},
-					Body:       "Error reading file",
+					Body:       "Error writing file",
 				}
 			} else {
 				response = HttpResponse{
-					StatusCode: 200,
-					Status:     "OK",
-					Headers: map[string]string{
-						"Content-Type":   "application/octet-stream",
-						"Content-Length": fmt.Sprintf("%d", len(fileContent))},
-					Body: string(fileContent),
+					StatusCode: 201,
+					Status:     "Created",
+					//Headers:    map[string]string{"Content-Type": "text/plain"},
+					//Body:       "File created",
 				}
 			}
 		}

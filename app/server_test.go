@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 func TestParseArgs_success(t *testing.T) {
@@ -33,6 +35,77 @@ func TestParse_HttpRequest_Empty(t *testing.T) {
 	}
 
 }
+
+func TestParseHttpRequest(t *testing.T) {
+	tests := []struct {
+		name            string
+		requestString   string
+		expectedMethod  HttpMethod
+		expectedPath    string
+		expectedHeaders map[string]string
+		expectedBody    string
+	}{
+		{
+			name:           "RootPath",
+			requestString:  "GET / HTTP/1.1\r\nHost: localhost:4221\r\nUser-Agent: curl/8.7.1\r\nAccept: */*\r\n\r\n",
+			expectedMethod: GET,
+			expectedPath:   "/",
+			expectedHeaders: map[string]string{
+				"Host":       "localhost:4221",
+				"User-Agent": "curl/8.7.1",
+				"Accept":     "*/*",
+			},
+			expectedBody: "",
+		},
+		{
+			name:           "WithBody",
+			requestString:  "POST /submit HTTP/1.1\r\nHost: localhost:4221\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 13\r\n\r\nname=JohnDoe",
+			expectedMethod: POST,
+			expectedPath:   "/submit",
+			expectedHeaders: map[string]string{
+				"Host":           "localhost:4221",
+				"Content-Type":   "application/x-www-form-urlencoded",
+				"Content-Length": "13",
+			},
+			expectedBody: "name=JohnDoe",
+		},
+		{
+			name:           "PostWithBody",
+			requestString:  "POST /files/file_123 HTTP/1.1\r\nHost: localhost:4221\r\nUser-Agent: curl/8.7.1\r\nAccept: */*\r\nContent-Type: application/octet-stream\r\nContent-Length: 5\r\n\r\n12345",
+			expectedMethod: POST,
+			expectedPath:   "/files/file_123",
+			expectedHeaders: map[string]string{
+				"Host":           "localhost:4221",
+				"User-Agent":     "curl/8.7.1",
+				"Accept":         "*/*",
+				"Content-Type":   "application/octet-stream",
+				"Content-Length": "5",
+			},
+			expectedBody: "12345",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := parseHttpRequest(tt.requestString)
+			if req.Method != tt.expectedMethod {
+				t.Errorf("Expected Method %s, but got %s", tt.expectedMethod, req.Method)
+			}
+			if req.Path != tt.expectedPath {
+				t.Errorf("Expected Path %s, but got %s", tt.expectedPath, req.Path)
+			}
+			for key, expectedValue := range tt.expectedHeaders {
+				if req.Headers[key] != expectedValue {
+					t.Errorf("Expected Header %s to be %s, but got %s", key, expectedValue, req.Headers[key])
+				}
+			}
+			if req.Body != tt.expectedBody {
+				t.Errorf("Expected Body %s, but got %s", tt.expectedBody, req.Body)
+			}
+		})
+	}
+}
+
 func TestGenerateHttpResponse_RootPath(t *testing.T) {
 	request := HttpRequest{
 		Method:  GET,
@@ -130,6 +203,52 @@ func TestGenerateHttpResponse_FileFound(t *testing.T) {
 		t.Errorf("Expected Content-Length to be %d, but got %s",
 			len(content), response.Headers["Content-Length"])
 	}
+}
+
+func TestGenerateHttpResponse_FileCreate(t *testing.T) {
+	u := uuid.New()
+	param := u.String()
+	directory = os.TempDir()
+
+	request := HttpRequest{
+		Method:  POST,
+		Path:    "/files/" + param,
+		Headers: map[string]string{},
+		Body:    "12345",
+	}
+
+	expectedStatusCode := 201
+	expectedStatus := "Created"
+	expectedFileContent := "12345"
+
+	response := generateHttpResponse(request)
+
+	if response.StatusCode != expectedStatusCode {
+		t.Errorf("Expected StatusCode %d, but got %d", expectedStatusCode, response.StatusCode)
+	}
+	if response.Status != expectedStatus {
+		t.Errorf("Expected Status %s, but got %s", expectedStatus, response.Status)
+	}
+	// Check if the file was created
+	filePath := filepath.Join(directory, param)
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		t.Errorf("Expected file %s to exist, but it does not", filePath)
+	}
+
+	// Check contents of the filePath equals params
+	// Read the file
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(content) != expectedFileContent {
+		t.Errorf("Expected file content to be %s, but got %s", expectedFileContent, string(content))
+	}
+
+	// Clean up
+	os.Remove(filePath)
+
 }
 
 func TestGenerateHttpResponse_PathNotFound(t *testing.T) {
