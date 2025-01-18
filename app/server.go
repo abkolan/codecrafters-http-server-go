@@ -1,9 +1,11 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -13,8 +15,15 @@ func closeListener(ln net.Listener) {
 	}
 }
 
+var directory string
+
 func main() {
-	fmt.Println("Starting server..")
+	// Define the directory flag
+	dir := flag.String("directory", "/tmp/", "Directory to serve files from")
+	flag.Parse()
+	directory = *dir
+
+	fmt.Printf("Starting server.. Serving files from directory: %s\n", directory)
 	ln, err := net.Listen("tcp", ":4221")
 	if err != nil {
 		//panic(err)
@@ -101,6 +110,32 @@ func processRequest(requestString string) string {
 				"Content-Type: text/plain\r\n"+
 				"Content-Length: %d\r\n\r\n"+
 				"%s", len(reqParam), reqParam)
+	} else if strings.HasPrefix(httpPath, "/files/") {
+		index := strings.Index(httpPath, "/files/")
+		fileName := httpPath[index+len("/files/"):]
+		filePathToServe := filepath.Join(directory, fileName)
+		file, err := os.Open(filePathToServe)
+		if err != nil {
+			responseString = "HTTP/1.1 404 Not Found\r\n\r\n"
+		} else {
+			fileInfo, err := file.Stat()
+			if err != nil {
+				responseString = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
+			} else {
+				fileSize := fileInfo.Size()
+				buf := make([]byte, fileSize)
+				_, err := file.Read(buf)
+				if err != nil {
+					responseString = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
+				} else {
+					responseString = fmt.Sprintf(
+						"HTTP/1.1 200 OK\r\n"+
+							"Content-Type: application/octet-stream\r\n"+
+							"Content-Length: %d\r\n\r\n"+"%s", fileSize, buf)
+				}
+			}
+		}
+
 	} else if strings.HasPrefix(httpPath, "/user-agent") {
 		responseString = fmt.Sprintf(
 			"HTTP/1.1 200 OK\r\n"+
@@ -119,4 +154,37 @@ func ExtractKV(line string, prefix string) string {
 	index := strings.Index(line, prefix)
 	value := line[index+len(prefix):]
 	return strings.TrimSpace(value)
+}
+
+// HttpRequest represents an HTTP request
+type HttpRequest struct {
+	Method  string
+	Path    string
+	Headers map[string]string
+	Body    string
+}
+
+func parseHttpRequest(requestString string) HttpRequest {
+	lines := strings.Split(requestString, "\r\n")
+	requestLine := strings.Fields(lines[0])
+	method := requestLine[0]
+	path := requestLine[1]
+
+	headers := make(map[string]string)
+	for _, line := range lines[1:] {
+		if line == "" {
+			break
+		}
+		headerParts := strings.SplitN(line, ": ", 2)
+		headers[headerParts[0]] = headerParts[1]
+	}
+
+	body := strings.Join(lines[len(headers)+2:], "\r\n")
+
+	return HttpRequest{
+		Method:  method,
+		Path:    path,
+		Headers: headers,
+		Body:    body,
+	}
 }
