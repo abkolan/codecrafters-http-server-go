@@ -1,0 +1,83 @@
+# ----------------------------------------------------------------------
+# .golangci.yml
+# Opinionated configuration for golangci-lint, aligned with
+# commonly accepted Go best practices (similar to Google’s style).
+# ----------------------------------------------------------------------
+# Reference: https://golangci-lint.run/usage/configuration/
+# 
+# Key points:
+#   1. Many of these linters come from the Staticcheck suite or
+#      are recommended in the Go community for code cleanliness.
+#   2. Some linters (like 'godot', 'godox', 'revive') add extra
+#      style checks. Feel free to disable if too strict for your
+#      project.
+#   3. 'stylecheck' is a modern replacement for 'golint' with
+#      similar checks but fewer false positives.
+# ----------------------------------------------------------------------
+
+run:
+  # If you want to restrict linting to only certain directories,
+  # you can specify them here:
+  #   dirs:
+  #     - ./app
+  #
+  # Timeout for the entire linter run (5 minutes).
+  timeout: 5m
+
+issues:
+  # Exclude or skip directories for vendor, generated code, etc.:
+  skip-dirs:
+    - vendor
+    - third_party
+  # You can also exclude specific issues by regex if needed:
+  exclude-rules:
+    # Ignore HTTP capitalization warnings from stylecheck
+    - linters:
+        - stylecheck
+      text: "ST1003: (func|type) .* should be .*HTTP"
+
+linters:
+  # We enable a core set of recommended linters for Go.
+  enable:
+    - govet           # Go's vet tool for catching suspicious constructs
+    - staticcheck     # Comprehensive static analysis (includes SA, ST, etc.)
+    - gosimple        # Suggest simpler code constructs
+    - ineffassign     # Detects assignments to variables that are never used
+    - errcheck        # Checks for unchecked errors
+    - goconst         # Finds repeated strings that could be constants
+    - revive          # A flexible, configurable linter similar to golint
+    - stylecheck      # Style rules (capitalization of acronyms, etc.)
+    - gocyclo         # Checks function/method complexity
+    - godot           # Ensures comments end with a period
+    - godox           # Highlights unfinished code (TODO, FIXME, etc.)
+    - gofmt           # Standard Go formatting checks
+    - misspell        # Correct commonly misspelled English words
+
+  # Disable any linters that are redundant or produce noise for your project:
+  disable:
+    # 'typecheck' is often redundant with govet + staticcheck
+    - typecheck
+
+linters-settings:
+  govet:
+    # (Optional) For advanced checks, you can uncomment:
+    # checkshadow: true
+  gocyclo:
+    # The default threshold is 30; 15-20 is common to encourage simpler functions.
+    min-complexity: 15
+  godot:
+    # If you only want to enforce comment endings on exported declarations,
+    # set this to "true":
+    scope-only: false
+  # revive can be tuned via .revive.toml; minimal usage can be kept inline:
+  revive:
+    ignore-generated-header: true
+    # You could specify a path to a custom config:
+    # config: .revive.toml
+  stylecheck:
+    # stylecheck enforces naming conventions and doc comments. 
+    # If you have short test functions, you can exclude them:
+    #   checks: ["ST1005", "ST1020"] # etc.
+
+# If your repository has code generation or specific “ignore” patterns,
+# refine skip-dirs, exclude, or exclude-rules above.

@@ -279,6 +279,10 @@ func TestGenerateHttpResponse_PathNotFound(t *testing.T) {
 	}
 }
 
+const (
+	HelloString = "Hello"
+)
+
 func TestGenerateHttpResponse_EchoPath(t *testing.T) {
 	request := HttpRequest{
 		Method:  GET,
@@ -289,7 +293,7 @@ func TestGenerateHttpResponse_EchoPath(t *testing.T) {
 
 	expectedStatusCode := 200
 	expectedStatus := "OK"
-	expectedBody := "Hello"
+	expectedBody := HelloString
 	expectedContentType := "text/plain"
 	expectedContentLength := strconv.Itoa(len(expectedBody))
 
@@ -355,7 +359,7 @@ func TestGenerateHttpResponse_GzipEncoding(t *testing.T) {
 
 	expectedStatusCode := 200
 	expectedStatus := "OK"
-	expectedBody := "Hello"
+	expectedBody := HelloString
 
 	response := generateHttpResponse(request)
 	if response.StatusCode != expectedStatusCode {
@@ -368,7 +372,7 @@ func TestGenerateHttpResponse_GzipEncoding(t *testing.T) {
 	if responseBody != expectedBody {
 		t.Errorf("Expected Body %s, but got %s", expectedBody, response.GetBodyAsString())
 	}
-	if response.Headers["Content-Encoding"] != "gzip" {
+	if response.Headers["Content-Encoding"] != string(GZIP) {
 		t.Errorf("Expected Content-Encoding to be gzip, but got %s",
 			response.Headers["Content-Encoding"])
 	}
@@ -384,7 +388,7 @@ func TestGenerateHttpResponse_InvalidEncoding(t *testing.T) {
 
 	expectedStatusCode := 200
 	expectedStatus := "OK"
-	expectedBody := "Hello"
+	expectedBody := HelloString
 
 	response := generateHttpResponse(request)
 	if response.StatusCode != expectedStatusCode {
@@ -412,7 +416,7 @@ func TestGenerateHttpResponse_MultipleEncodings_gzip_invalid(t *testing.T) {
 
 	expectedStatusCode := 200
 	expectedStatus := "OK"
-	expectedBody := "Hello"
+	expectedBody := HelloString
 
 	response := generateHttpResponse(request)
 	if response.StatusCode != expectedStatusCode {
@@ -441,7 +445,7 @@ func TestGenerateHttpResponse_MultipleEncodings_only_invalid(t *testing.T) {
 
 	expectedStatusCode := 200
 	expectedStatus := "OK"
-	expectedBody := "Hello"
+	expectedBody := HelloString
 
 	response := generateHttpResponse(request)
 	if response.StatusCode != expectedStatusCode {
@@ -469,7 +473,7 @@ func TestGenerateHttpResponse_GzipEncoding_WithBody(t *testing.T) {
 
 	expectedStatusCode := 200
 	expectedStatus := "OK"
-	expectedBody := "Hello"
+	expectedBody := HelloString
 
 	response := generateHttpResponse(request)
 	if response.StatusCode != expectedStatusCode {
@@ -488,7 +492,7 @@ func TestGenerateHttpResponse_GzipEncoding_WithBody(t *testing.T) {
 	}
 }
 
-// Decode Gzip-compressed bytes back to a string
+// Decode Gzip-compressed bytes back to a string.
 func decodeGzipToString(compressedBytes []byte) (string, error) {
 	// Create a gzip reader
 	gzipReader, err := gzip.NewReader(bytes.NewReader(compressedBytes))

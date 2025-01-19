@@ -154,14 +154,14 @@ func generateHttpResponse(request HttpRequest) HttpResponse {
 		needsEncoding := false
 
 		for _, encoding := range strings.Split(encodingHeader, ",") {
-			if strings.TrimSpace(encoding) == "gzip" {
-				responseHeaders["Content-Encoding"] = "gzip"
+			if strings.TrimSpace(encoding) == string(GZIP) {
+				responseHeaders["Content-Encoding"] = string(GZIP)
 				needsEncoding = true
 				break
 			}
 		}
 		if needsEncoding {
-			responseHeaders["Content-Encoding"] = "gzip"
+			responseHeaders["Content-Encoding"] = string(GZIP)
 			gzipResponse, err := encodeStringWithGzip(msg)
 			if err != nil {
 				response = HttpResponse{
@@ -217,7 +217,7 @@ const (
 	UTF8 Encoding = "utf-8"
 )
 
-// HttpRequest represents an HTTP request
+// HttpRequest represents an HTTP request.
 type HttpMethod string
 
 const (
@@ -257,7 +257,7 @@ func parseHttpRequest(requestString string) HttpRequest {
 	}
 }
 
-// HttpResponse represents an HTTP response
+// HttpResponse represents an HTTP response.
 type HttpResponse struct {
 	StatusCode int
 	Status     string
@@ -274,7 +274,7 @@ func (r *HttpResponse) SetBodyFromString(body string) {
 	r.Body = []byte(body)
 }
 
-// Encode string with Gzip compression
+// Encode string with Gzip compression.
 func encodeStringWithGzip(input string) ([]byte, error) {
 	var buf bytes.Buffer
 

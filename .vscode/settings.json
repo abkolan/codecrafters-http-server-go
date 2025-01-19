@@ -1,5 +1,6 @@
 {
     "files.exclude": {
-        "app/__debug_bin*": true
+        "app/__debug_bin*": true,
+        "**/bin*": true
     }
 }
