@@ -29,7 +29,7 @@ Content-Type: text/plain
 ### Echo Server
 Request 
 ```
-curl -v http://localhost:4221/echo/abc
+$ curl -v http://localhost:4221/echo/abc
 ```
 Response 
 ```http
@@ -42,7 +42,7 @@ abc
 ### Reads Content Headers and returns `User_Agent` as a response
 Request 
 ```bash
-curl -v --header "User-Agent: foobar/1.2.3" http://localhost:4221/user-agent
+$ curl -v --header "User-Agent: foobar/1.2.3" http://localhost:4221/user-agent
 ```
 Response
 ```http
