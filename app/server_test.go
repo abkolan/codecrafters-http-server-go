@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -126,8 +129,8 @@ func TestGenerateHttpResponse_RootPath(t *testing.T) {
 	if response.Status != expectedStatus {
 		t.Errorf("Expected Status %s, but got %s", expectedStatus, response.Status)
 	}
-	if response.Body != expectedBody {
-		t.Errorf("Expected Body %s, but got %s", expectedBody, response.Body)
+	if response.GetBodyAsString() != expectedBody {
+		t.Errorf("Expected Body %s, but got %s", expectedBody, response.GetBodyAsString())
 	}
 }
 
@@ -151,8 +154,8 @@ func TestGenerateHttpResponse_FileNotFound(t *testing.T) {
 	if response.Status != expectedStatus {
 		t.Errorf("Expected Status %s, but got %s", expectedStatus, response.Status)
 	}
-	if response.Body != expectedBody {
-		t.Errorf("Expected Body %s, but got %s", expectedBody, response.Body)
+	if response.GetBodyAsString() != expectedBody {
+		t.Errorf("Expected Body %s, but got %s", expectedBody, response.GetBodyAsString())
 	}
 }
 
@@ -192,8 +195,8 @@ func TestGenerateHttpResponse_FileFound(t *testing.T) {
 	if response.Status != expectedStatus {
 		t.Errorf("Expected Status %s, but got %s", expectedStatus, response.Status)
 	}
-	if response.Body != expectedBody {
-		t.Errorf("Expected Body %s, but got %s", expectedBody, response.Body)
+	if response.GetBodyAsString() != expectedBody {
+		t.Errorf("Expected Body %s, but got %s", expectedBody, response.GetBodyAsString())
 	}
 	if response.Headers["Content-Type"] != "application/octet-stream" {
 		t.Errorf("Expected Content-Type to be application/octet-stream, but got %s",
@@ -271,8 +274,8 @@ func TestGenerateHttpResponse_PathNotFound(t *testing.T) {
 	if response.Status != expectedStatus {
 		t.Errorf("Expected Status %s, but got %s", expectedStatus, response.Status)
 	}
-	if response.Body != expectedBody {
-		t.Errorf("Expected Body %s, but got %s", expectedBody, response.Body)
+	if response.GetBodyAsString() != expectedBody {
+		t.Errorf("Expected Body %s, but got %s", expectedBody, response.GetBodyAsString())
 	}
 }
 
@@ -298,8 +301,8 @@ func TestGenerateHttpResponse_EchoPath(t *testing.T) {
 	if response.Status != expectedStatus {
 		t.Errorf("Expected Status %s, but got %s", expectedStatus, response.Status)
 	}
-	if response.Body != expectedBody {
-		t.Errorf("Expected Body %s, but got %s", expectedBody, response.Body)
+	if response.GetBodyAsString() != expectedBody {
+		t.Errorf("Expected Body %s, but got %s", expectedBody, response.GetBodyAsString())
 	}
 	if response.Headers["Content-Type"] != expectedContentType {
 		t.Errorf("Expected Content-Type to be application/octet-stream, but got %s",
@@ -333,8 +336,8 @@ func TestGenerateHttpResponse_UserAgentHeader(t *testing.T) {
 	if response.Status != expectedStatus {
 		t.Errorf("Expected Status %s, but got %s", expectedStatus, response.Status)
 	}
-	if response.Body != expectedBody {
-		t.Errorf("Expected Body %s, but got %s", expectedBody, response.Body)
+	if response.GetBodyAsString() != expectedBody {
+		t.Errorf("Expected Body %s, but got %s", expectedBody, response.GetBodyAsString())
 	}
 	if response.Headers["Content-Length"] != strconv.Itoa(len(uaString)) {
 		t.Errorf("Expected Content-Length to be %d, but got %s",
@@ -361,8 +364,9 @@ func TestGenerateHttpResponse_GzipEncoding(t *testing.T) {
 	if response.Status != expectedStatus {
 		t.Errorf("Expected Status %s, but got %s", expectedStatus, response.Status)
 	}
-	if response.Body != expectedBody {
-		t.Errorf("Expected Body %s, but got %s", expectedBody, response.Body)
+	responseBody, _ := decodeGzipToString(response.Body)
+	if responseBody != expectedBody {
+		t.Errorf("Expected Body %s, but got %s", expectedBody, response.GetBodyAsString())
 	}
 	if response.Headers["Content-Encoding"] != "gzip" {
 		t.Errorf("Expected Content-Encoding to be gzip, but got %s",
@@ -389,8 +393,8 @@ func TestGenerateHttpResponse_InvalidEncoding(t *testing.T) {
 	if response.Status != expectedStatus {
 		t.Errorf("Expected Status %s, but got %s", expectedStatus, response.Status)
 	}
-	if response.Body != expectedBody {
-		t.Errorf("Expected Body %s, but got %s", expectedBody, response.Body)
+	if response.GetBodyAsString() != expectedBody {
+		t.Errorf("Expected Body %s, but got %s", expectedBody, response.GetBodyAsString())
 	}
 	if response.Headers["Content-Encoding"] != "" {
 		t.Errorf("Expected No Content-Encoding but got %s",
@@ -417,8 +421,9 @@ func TestGenerateHttpResponse_MultipleEncodings_gzip_invalid(t *testing.T) {
 	if response.Status != expectedStatus {
 		t.Errorf("Expected Status %s, but got %s", expectedStatus, response.Status)
 	}
-	if response.Body != expectedBody {
-		t.Errorf("Expected Body %s, but got %s", expectedBody, response.Body)
+	responseBody, _ := decodeGzipToString(response.Body)
+	if responseBody != expectedBody {
+		t.Errorf("Expected Body %s, but got %s", expectedBody, response.GetBodyAsString())
 	}
 	if response.Headers["Content-Encoding"] != "gzip" {
 		t.Errorf("Expected Content-Encoding to be gzip, but got %s",
@@ -445,11 +450,60 @@ func TestGenerateHttpResponse_MultipleEncodings_only_invalid(t *testing.T) {
 	if response.Status != expectedStatus {
 		t.Errorf("Expected Status %s, but got %s", expectedStatus, response.Status)
 	}
-	if response.Body != expectedBody {
-		t.Errorf("Expected Body %s, but got %s", expectedBody, response.Body)
+	if response.GetBodyAsString() != expectedBody {
+		t.Errorf("Expected Body %s, but got %s", expectedBody, response.GetBodyAsString())
 	}
 	if response.Headers["Content-Encoding"] != "" {
 		t.Errorf("Expected No Content-Encoding but got %s",
 			response.Headers["Content-Encoding"])
 	}
+}
+
+func TestGenerateHttpResponse_GzipEncoding_WithBody(t *testing.T) {
+	request := HttpRequest{
+		Method:  GET,
+		Path:    "/echo/Hello",
+		Headers: map[string]string{"Accept-Encoding": "gzip"},
+		Body:    "",
+	}
+
+	expectedStatusCode := 200
+	expectedStatus := "OK"
+	expectedBody := "Hello"
+
+	response := generateHttpResponse(request)
+	if response.StatusCode != expectedStatusCode {
+		t.Errorf("Expected StatusCode %d, but got %d", expectedStatusCode, response.StatusCode)
+	}
+	if response.Status != expectedStatus {
+		t.Errorf("Expected Status %s, but got %s", expectedStatus, response.Status)
+	}
+	responseBody, _ := decodeGzipToString(response.Body)
+	if responseBody != expectedBody {
+		t.Errorf("Expected Body %s, but got %s", expectedBody, response.GetBodyAsString())
+	}
+	if response.Headers["Content-Encoding"] != "gzip" {
+		t.Errorf("Expected Content-Encoding to be gzip, but got %s",
+			response.Headers["Content-Encoding"])
+	}
+}
+
+// Decode Gzip-compressed bytes back to a string
+func decodeGzipToString(compressedBytes []byte) (string, error) {
+	// Create a gzip reader
+	gzipReader, err := gzip.NewReader(bytes.NewReader(compressedBytes))
+	if err != nil {
+		return "", err
+	}
+	defer gzipReader.Close()
+
+	// Read the decompressed content
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, gzipReader)
+	if err != nil {
+		return "", err
+	}
+
+	// Return the decompressed string
+	return buf.String(), nil
 }

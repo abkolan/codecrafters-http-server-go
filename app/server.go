@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"flag"
 	"fmt"
 	"net"
@@ -74,7 +76,7 @@ func handleConnection(conn net.Conn) {
 	for key, value := range response.Headers {
 		resp += fmt.Sprintf("%s: %s\r\n", key, value)
 	}
-	resp += "\r\n" + response.Body
+	resp += "\r\n" + response.GetBodyAsString()
 	_, err = conn.Write([]byte(resp))
 	if err != nil {
 		fmt.Println("Error while reading from the connection", err)
@@ -88,7 +90,7 @@ func generateHttpResponse(request HttpRequest) HttpResponse {
 			StatusCode: 200,
 			Status:     "OK",
 			Headers:    map[string]string{"Content-Type": "text/plain"},
-			Body:       "",
+			Body:       []byte(""),
 		}
 	} else if strings.HasPrefix(request.Path, "/files/") {
 		if request.Method == GET {
@@ -100,7 +102,7 @@ func generateHttpResponse(request HttpRequest) HttpResponse {
 					StatusCode: 404,
 					Status:     "Not Found",
 					Headers:    map[string]string{"Content-Type": "text/plain"},
-					Body:       "File not found",
+					Body:       []byte("File not found"),
 				}
 			} else {
 				defer file.Close()
@@ -110,7 +112,7 @@ func generateHttpResponse(request HttpRequest) HttpResponse {
 						StatusCode: 500,
 						Status:     "Internal Server Error",
 						Headers:    map[string]string{"Content-Type": "text/plain"},
-						Body:       "Error reading file",
+						Body:       []byte("Error reading file"),
 					}
 				} else {
 					response = HttpResponse{
@@ -119,7 +121,7 @@ func generateHttpResponse(request HttpRequest) HttpResponse {
 						Headers: map[string]string{
 							"Content-Type":   "application/octet-stream",
 							"Content-Length": fmt.Sprintf("%d", len(fileContent))},
-						Body: string(fileContent),
+						Body: fileContent,
 					}
 				}
 			}
@@ -132,7 +134,7 @@ func generateHttpResponse(request HttpRequest) HttpResponse {
 					StatusCode: 500,
 					Status:     "Internal Server Error",
 					Headers:    map[string]string{"Content-Type": "text/plain"},
-					Body:       "Error writing file",
+					Body:       []byte("Error writing file"),
 				}
 			} else {
 				response = HttpResponse{
@@ -160,13 +162,32 @@ func generateHttpResponse(request HttpRequest) HttpResponse {
 		}
 		if needsEncoding {
 			responseHeaders["Content-Encoding"] = "gzip"
+			gzipResponse, err := encodeStringWithGzip(msg)
+			if err != nil {
+				response = HttpResponse{
+					StatusCode: 500,
+					Status:     "Internal Server Error",
+					Headers:    map[string]string{"Content-Type": "text/plain"},
+					Body:       []byte("Error encoding response"),
+				}
+				return response
+			} else {
+				responseHeaders["Content-Length"] = fmt.Sprintf("%d", len(gzipResponse))
+				response = HttpResponse{
+					StatusCode: 200,
+					Status:     "OK",
+					Headers:    responseHeaders,
+					Body:       gzipResponse,
+				}
+				return response
+			}
 		}
 
 		response = HttpResponse{
 			StatusCode: 200,
 			Status:     "OK",
 			Headers:    responseHeaders,
-			Body:       msg,
+			Body:       []byte(msg),
 		}
 
 	} else if request.Path == "/user-agent" {
@@ -175,19 +196,26 @@ func generateHttpResponse(request HttpRequest) HttpResponse {
 			Status:     "OK",
 			Headers: map[string]string{"Content-Type": "text/plain",
 				"Content-Length": fmt.Sprintf("%d", len(request.Headers["User-Agent"]))},
-			Body: request.Headers["User-Agent"],
+			Body: []byte(request.Headers["User-Agent"]),
 		}
 	} else {
 		response = HttpResponse{
 			StatusCode: 404,
 			Status:     "Not Found",
 			Headers:    map[string]string{"Content-Type": "text/plain"},
-			Body:       "Path not found",
+			Body:       []byte("Path not found"),
 		}
 	}
 
 	return response
 }
+
+type Encoding string
+
+const (
+	GZIP Encoding = "gzip"
+	UTF8 Encoding = "utf-8"
+)
 
 // HttpRequest represents an HTTP request
 type HttpMethod string
@@ -234,5 +262,38 @@ type HttpResponse struct {
 	StatusCode int
 	Status     string
 	Headers    map[string]string
-	Body       string
+	Body       []byte
+	Encoding   Encoding
+}
+
+func (r *HttpResponse) GetBodyAsString() string {
+	return string(r.Body)
+}
+
+func (r *HttpResponse) SetBodyFromString(body string) {
+	r.Body = []byte(body)
+}
+
+// Encode string with Gzip compression
+func encodeStringWithGzip(input string) ([]byte, error) {
+	var buf bytes.Buffer
+
+	// Create a new gzip writer
+	gzipWriter := gzip.NewWriter(&buf)
+	defer gzipWriter.Close()
+
+	// Write the string to the gzip writer
+	_, err := gzipWriter.Write([]byte(input))
+	if err != nil {
+		return nil, err
+	}
+
+	// Close the writer to flush the data
+	err = gzipWriter.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	// Return the compressed bytes
+	return buf.Bytes(), nil
 }
