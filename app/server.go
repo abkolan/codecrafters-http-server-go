@@ -145,12 +145,19 @@ func generateHttpResponse(request HttpRequest) HttpResponse {
 		}
 	} else if strings.HasPrefix(request.Path, "/echo/") {
 		msg := strings.TrimPrefix(request.Path, "/echo/")
+		responseHeaders := make(map[string]string)
+		responseHeaders["Content-Type"] = "text/plain"
+		responseHeaders["Content-Length"] = fmt.Sprintf("%d", len(msg))
+		encoding := request.Headers["Accept-Encoding"]
+		switch encoding {
+		case "gzip":
+			responseHeaders["Content-Encoding"] = "gzip"
+		}
 		response = HttpResponse{
 			StatusCode: 200,
 			Status:     "OK",
-			Headers: map[string]string{"Content-Type": "text/plain",
-				"Content-Length": fmt.Sprintf("%d", len(msg))},
-			Body: msg,
+			Headers:    responseHeaders,
+			Body:       msg,
 		}
 
 	} else if request.Path == "/user-agent" {

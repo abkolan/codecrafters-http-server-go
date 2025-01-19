@@ -341,3 +341,59 @@ func TestGenerateHttpResponse_UserAgentHeader(t *testing.T) {
 			len(uaString), response.Headers["Content-Length"])
 	}
 }
+
+func TestGenerateHttpResponse_GzipEncoding(t *testing.T) {
+	request := HttpRequest{
+		Method:  GET,
+		Path:    "/echo/Hello",
+		Headers: map[string]string{"Accept-Encoding": "gzip"},
+		Body:    "",
+	}
+
+	expectedStatusCode := 200
+	expectedStatus := "OK"
+	expectedBody := "Hello"
+
+	response := generateHttpResponse(request)
+	if response.StatusCode != expectedStatusCode {
+		t.Errorf("Expected StatusCode %d, but got %d", expectedStatusCode, response.StatusCode)
+	}
+	if response.Status != expectedStatus {
+		t.Errorf("Expected Status %s, but got %s", expectedStatus, response.Status)
+	}
+	if response.Body != expectedBody {
+		t.Errorf("Expected Body %s, but got %s", expectedBody, response.Body)
+	}
+	if response.Headers["Content-Encoding"] != "gzip" {
+		t.Errorf("Expected Content-Encoding to be gzip, but got %s",
+			response.Headers["Content-Encoding"])
+	}
+}
+
+func TestGenerateHttpResponse_InvalidEncoding(t *testing.T) {
+	request := HttpRequest{
+		Method:  GET,
+		Path:    "/echo/Hello",
+		Headers: map[string]string{"Accept-Encoding": "invalid-encoding"},
+		Body:    "",
+	}
+
+	expectedStatusCode := 200
+	expectedStatus := "OK"
+	expectedBody := "Hello"
+
+	response := generateHttpResponse(request)
+	if response.StatusCode != expectedStatusCode {
+		t.Errorf("Expected StatusCode %d, but got %d", expectedStatusCode, response.StatusCode)
+	}
+	if response.Status != expectedStatus {
+		t.Errorf("Expected Status %s, but got %s", expectedStatus, response.Status)
+	}
+	if response.Body != expectedBody {
+		t.Errorf("Expected Body %s, but got %s", expectedBody, response.Body)
+	}
+	if response.Headers["Content-Encoding"] != "" {
+		t.Errorf("Expected No Content-Encoding but got %s",
+			response.Headers["Content-Encoding"])
+	}
+}
