@@ -397,3 +397,59 @@ func TestGenerateHttpResponse_InvalidEncoding(t *testing.T) {
 			response.Headers["Content-Encoding"])
 	}
 }
+
+func TestGenerateHttpResponse_MultipleEncodings_gzip_invalid(t *testing.T) {
+	request := HttpRequest{
+		Method:  GET,
+		Path:    "/echo/Hello",
+		Headers: map[string]string{"Accept-Encoding": "invalid-encoding-1, gzip, invalid-encoding-2"},
+		Body:    "",
+	}
+
+	expectedStatusCode := 200
+	expectedStatus := "OK"
+	expectedBody := "Hello"
+
+	response := generateHttpResponse(request)
+	if response.StatusCode != expectedStatusCode {
+		t.Errorf("Expected StatusCode %d, but got %d", expectedStatusCode, response.StatusCode)
+	}
+	if response.Status != expectedStatus {
+		t.Errorf("Expected Status %s, but got %s", expectedStatus, response.Status)
+	}
+	if response.Body != expectedBody {
+		t.Errorf("Expected Body %s, but got %s", expectedBody, response.Body)
+	}
+	if response.Headers["Content-Encoding"] != "gzip" {
+		t.Errorf("Expected Content-Encoding to be gzip, but got %s",
+			response.Headers["Content-Encoding"])
+	}
+}
+
+func TestGenerateHttpResponse_MultipleEncodings_only_invalid(t *testing.T) {
+	request := HttpRequest{
+		Method:  GET,
+		Path:    "/echo/Hello",
+		Headers: map[string]string{"Accept-Encoding": "invalid-encoding-1, invalid-encoding-2"},
+		Body:    "",
+	}
+
+	expectedStatusCode := 200
+	expectedStatus := "OK"
+	expectedBody := "Hello"
+
+	response := generateHttpResponse(request)
+	if response.StatusCode != expectedStatusCode {
+		t.Errorf("Expected StatusCode %d, but got %d", expectedStatusCode, response.StatusCode)
+	}
+	if response.Status != expectedStatus {
+		t.Errorf("Expected Status %s, but got %s", expectedStatus, response.Status)
+	}
+	if response.Body != expectedBody {
+		t.Errorf("Expected Body %s, but got %s", expectedBody, response.Body)
+	}
+	if response.Headers["Content-Encoding"] != "" {
+		t.Errorf("Expected No Content-Encoding but got %s",
+			response.Headers["Content-Encoding"])
+	}
+}

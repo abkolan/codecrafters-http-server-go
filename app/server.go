@@ -148,11 +148,20 @@ func generateHttpResponse(request HttpRequest) HttpResponse {
 		responseHeaders := make(map[string]string)
 		responseHeaders["Content-Type"] = "text/plain"
 		responseHeaders["Content-Length"] = fmt.Sprintf("%d", len(msg))
-		encoding := request.Headers["Accept-Encoding"]
-		switch encoding {
-		case "gzip":
+		encodingHeader := request.Headers["Accept-Encoding"]
+		needsEncoding := false
+
+		for _, encoding := range strings.Split(encodingHeader, ",") {
+			if strings.TrimSpace(encoding) == "gzip" {
+				responseHeaders["Content-Encoding"] = "gzip"
+				needsEncoding = true
+				break
+			}
+		}
+		if needsEncoding {
 			responseHeaders["Content-Encoding"] = "gzip"
 		}
+
 		response = HttpResponse{
 			StatusCode: 200,
 			Status:     "OK",
@@ -184,13 +193,8 @@ func generateHttpResponse(request HttpRequest) HttpResponse {
 type HttpMethod string
 
 const (
-	GET     HttpMethod = "GET"
-	POST    HttpMethod = "POST"
-	PUT     HttpMethod = "PUT"
-	DELETE  HttpMethod = "DELETE"
-	OPTIONS HttpMethod = "OPTIONS"
-	HEAD    HttpMethod = "HEAD"
-	PATCH   HttpMethod = "PATCH"
+	GET  HttpMethod = "GET"
+	POST HttpMethod = "POST"
 )
 
 type HttpRequest struct {
