@@ -1,38 +1,142 @@
+# Build your own HTTP Server from scratch challenge
 [![progress-banner](https://backend.codecrafters.io/progress/http-server/a74b3908-d053-4cb0-b8e6-762e0bfb3855)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
 
-This is a starting point for Go solutions to the
-["Build Your Own HTTP server" Challenge](https://app.codecrafters.io/courses/http-server/overview).
+[![Go Report Card](https://goreportcard.com/badge/github.com/abkolan/codecrafters-http-server-go)](https://goreportcard.com/report/github.com/abkolan/codecrafters-http-server-go)  
 
-[HTTP](https://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol) is the
-protocol that powers the web. In this challenge, you'll build a HTTP/1.1 server
-that is capable of serving multiple clients.
+This is part of [codecrafters.io's](https://codecrafters.io) 
+["Build Your Own HTTP server" Challenge](https://app.codecrafters.io/courses/http-server/overview)  
+Had fun building this one.
 
-Along the way you'll learn about TCP servers,
-[HTTP request syntax](https://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html),
-and more.
+## How to run
+1. Ensure you have `go (1.19)` installed locally
+2. Run `./your_server.sh` to run the HttpServer which is implemented in
+   `app/server.go`.
+3. Or run `make build` or `make test` 
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+## Features
+### Respond with a 200 on root path
+Request
+```bash
+$ curl -v http://localhost:4221
+```
+Response
+```http
+HTTP/1.1 200 OK
+Content-Type: text/plain
 
-# Passing the first stage
 
-The entry point for your HTTP server implementation is in `app/server.go`. Study
-and uncomment the relevant code, and push your changes to pass the first stage:
+```
+### Echo Server
+Request 
+```
+curl -v http://localhost:4221/echo/abc
+```
+Response 
+```http
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Content-Length: 3
 
-```sh
-git add .
-git commit -m "pass 1st stage" # any msg
-git push origin master
+abc
+```
+### Reads Content Headers and returns `User_Agent` as a response
+Request 
+```bash
+curl -v --header "User-Agent: foobar/1.2.3" http://localhost:4221/user-agent
+```
+Response
+```http
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Content-Length: 12
+
+foobar/1.2.3
+```
+### Supports concurrent connections
+Requests
+```bash
+$ (sleep 3 && printf "GET / HTTP/1.1\r\n\r\n") | nc localhost 4221 &
+$ (sleep 3 && printf "GET / HTTP/1.1\r\n\r\n") | nc localhost 4221 &
+$ (sleep 3 && printf "GET / HTTP/1.1\r\n\r\n") | nc localhost 4221 &
+```
+Responses
+```http
+HTTP/1.1 200 OK
+Content-Type: text/plain
+
+HTTP/1.1 200 OK
+Content-Type: text/plain
+
+HTTP/1.1 200 OK
+Content-Type: text/plain
+
 ```
 
-Time to move on to the next stage!
+### Support File Downloads
+Request 1
+```bash
+$ echo -n 'Hello, World!' > $TMPDIR/foo
+$ curl -i http://localhost:4221/files/foo
+```
+Response 1
+```http
+HTTP/1.1 200 OK
+Content-Type: application/octet-stream
+Content-Length: 13
 
-# Stage 2 & beyond
+Hello, World!
 
-Note: This section is for stages 2 and beyond.
+```
+Request 2
 
-1. Ensure you have `go (1.19)` installed locally
-1. Run `./your_server.sh` to run your program, which is implemented in
-   `app/server.go`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+```bash
+$ curl -i http://localhost:4221/files/non_existant_file
+```
+Response 2
+```http
+HTTP/1.1 404 Not Found
+Content-Type: text/plain
+
+File not found
+```
+### Supports File Uploads
+Request 1
+```bash
+curl -v --data "12345" -H "Content-Type: application/octet-stream" http://localhost:4221/files/file_123
+```
+Response 1
+```http
+HTTP/1.1 201 Created
+
+```
+Request 2
+```bash
+curl -i http://localhost:4221/files/file_123 
+```
+Response 2 
+```http
+HTTP/1.1 200 OK
+Content-Type: application/octet-stream
+Content-Length: 5
+
+12345
+```
+### Supports gzip compression 
+Request 
+```bash
+curl -v -H "Accept-Encoding: gzip" http://localhost:4221/echo/abc
+```
+Response (formatted)
+```http
+HTTP/1.1 200 OK
+Content-Length: 27
+Content-Encoding: gzip
+Content-Type: text/plain
+ 
+{ [27 bytes data]
+100    27  100    27    0     0   4373      0 --:--:-- --:--:-- --:--:--  4500
+* Connection #0 to host localhost left intact
+00000000  1f 8b 08 00 00 00 00 00  00 ff 4a 4c 4a 06 04 00  |..........JLJ...|
+00000010  00 ff ff c2 41 24 35 03  00 00 00                 |....A$5....|
+0000001b
+```
