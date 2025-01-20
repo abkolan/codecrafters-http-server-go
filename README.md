@@ -28,7 +28,7 @@ Content-Type: text/plain
 ```
 ### Echo Server
 Request 
-```
+```bash
 $ curl -v http://localhost:4221/echo/abc
 ```
 Response 
